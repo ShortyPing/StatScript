@@ -23,6 +23,7 @@ fn main() {
 
     let mut tokenizer = Tokenizer::new(file_content);
 
-    println!("{:?}", tokenizer.next_token());
-    println!("{:?}", tokenizer.next_token());
+    while let Some(token) = tokenizer.next_token().unwrap() {
+        println!("{:?}", token)
+    }
 }

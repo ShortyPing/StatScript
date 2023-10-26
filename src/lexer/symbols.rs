@@ -24,8 +24,6 @@ pub enum SymbolType {
     Dot,              // .
     Comma,            // ,
     QuestionMark,     // ?
-    DoubleQuote,      // "
-    SingleQuote,      // '
     Backtick,         // `
     Tilde,            // ~
     Pipe,             // |
@@ -34,7 +32,7 @@ pub enum SymbolType {
 }
 
 impl SymbolType {
-    pub fn from_char(c: char) -> Option<Self> {
+    pub fn from_char(c: &char) -> Option<Self> {
         match c {
             '!' => Some(Self::ExclamationMark),
             '@' => Some(Self::AtSign),
@@ -59,8 +57,6 @@ impl SymbolType {
             ';' => Some(Self::Semicolon),
             '.' => Some(Self::Comma),
             '?' => Some(Self::QuestionMark),
-            '"' => Some(Self::DoubleQuote),
-            '\'' => Some(Self::SingleQuote),
             '`' => Some(Self::Backtick),
             '~' => Some(Self::Tilde),
             '|' => Some(Self::Pipe),

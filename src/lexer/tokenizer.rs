@@ -21,16 +21,6 @@ pub enum TokenType {
 
 type TokenReturn = Result<Option<Token>, TokenizerError>;
 
-// #[derive(Debug, Default)]
-// pub enum TokenizerState {
-//     #[default]
-//     None,
-//     String,
-//     Number,
-//     Identifier,
-//     Finished,
-// }
-
 #[derive(Debug, Default)]
 pub struct Tokenizer {
     pub content: String,
@@ -79,6 +69,7 @@ impl Tokenizer {
             }
             c if c == '"' => self.parse_string(token),
             c if c.is_whitespace() => self.next_token(),
+            c if SymbolType::from_char(&c).is_some() => self.parse_symbol(token, c),
             c => Err(TokenizerError::new(
                 self,
                 format!("Invalid char at beginning of token: {c}"),
@@ -140,27 +131,38 @@ impl Tokenizer {
         Ok(Some(token))
     }
 
+    fn parse_symbol(&mut self, mut token: Token, c: char) -> TokenReturn {
+        token.value = Some(c.to_string());
+        token.token_type = Some(TokenType::Symbol(SymbolType::from_char(&c).unwrap()));
+        token.end_pos = self.cursor_position;
+        Ok(Some(token))
+    }
     fn parse_string(&mut self, mut token: Token) -> TokenReturn {
         let mut is_escaped = false;
-        while let Some(c) = self.next_char() {
-            if c == '"' {
-                if !is_escaped {
-                    break;
+        loop {
+            match self.next_char() {
+                Some(c) => {
+                    if c == '"' {
+                        if !is_escaped {
+                            break;
+                        }
+
+                        is_escaped = false;
+                    }
+
+                    if c == '\\' {
+                        if !is_escaped {
+                            is_escaped = true;
+                            continue;
+                        }
+
+                        is_escaped = false;
+                    }
+
+                    self.buffer.push(c);
                 }
-
-                is_escaped = false;
+                None => return Err(TokenizerError::new(self, "Unclosed string literal.".into())),
             }
-
-            if c == '\\' {
-                if !is_escaped {
-                    is_escaped = true;
-                    continue;
-                }
-
-                is_escaped = false;
-            }
-
-            self.buffer.push(c);
         }
 
         token.token_type = Some(TokenType::String);
