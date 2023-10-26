@@ -1,2 +1,2 @@
-pub mod lexer;
 mod error;
+pub mod lexer;

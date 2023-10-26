@@ -1,7 +1,5 @@
 use crate::error::lexer::TokenizerError;
 use crate::lexer::symbols::SymbolType;
-use std::hint::black_box;
-use std::ops::Sub;
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Token {
