@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum SymbolType {
     ExclamationMark,  // !
     AtSign,           // @
@@ -61,7 +61,7 @@ impl SymbolType {
             '~' => Some(Self::Tilde),
             '|' => Some(Self::Pipe),
             '<' => Some(Self::TagLeft),
-            '>' => Some(Self::TagLeft),
+            '>' => Some(Self::TagRight),
             _ => None,
         }
     }

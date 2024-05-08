@@ -1,7 +1,7 @@
 use crate::error::lexer::TokenizerError;
 use crate::lexer::symbols::SymbolType;
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct Token {
     pub start_pos: i128,
     pub end_pos: i128,
@@ -9,7 +9,7 @@ pub struct Token {
     pub token_type: Option<TokenType>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     Identifier,
     Number(bool),

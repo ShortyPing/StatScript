@@ -2,9 +2,9 @@ use crate::lexer::tokenizer::Tokenizer;
 
 #[derive(Debug)]
 pub struct TokenizerError {
-    position: i128,
-    line: i128,
-    message: String,
+    pub position: i128,
+    pub line: i128,
+    pub message: String,
 }
 
 impl TokenizerError {

@@ -3,6 +3,7 @@ use std::fs;
 use clap::Parser;
 use stat_script::lexer::tokenizer::Tokenizer;
 use std::process::exit;
+use stat_script::parse::parser::StatParser;
 
 #[derive(Debug, Parser)]
 struct CLI {
@@ -21,9 +22,19 @@ fn main() {
         }
     };
 
-    let mut tokenizer = Tokenizer::new(file_content);
+    let tokenizer = Tokenizer::new(file_content);
 
-    while let Some(token) = tokenizer.next_token().unwrap() {
-        println!("{:?}", token)
-    }
+    let mut parser = StatParser::new(tokenizer);
+
+    let ast = match parser.parse() {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("Failed to parse at position {}: {}", e.position, e.message);
+            exit(1)
+        }
+    };
+
+    println!("{:#?}", ast);
+
 }
+

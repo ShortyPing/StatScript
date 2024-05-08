@@ -1,4 +1,6 @@
 func main() @ i32 {
-    put("Hello, World!");
-    return 0;
+    set<i32> var1 <- {
+        return abc
+    }
+
 }
