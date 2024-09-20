@@ -1,8 +1,9 @@
 use std::fs;
+use std::process::exit;
 
 use clap::Parser;
+
 use stat_script::lexer::tokenizer::Tokenizer;
-use std::process::exit;
 use stat_script::parse::parser::StatParser;
 
 #[derive(Debug, Parser)]
@@ -24,7 +25,10 @@ fn main() {
 
     let tokenizer = Tokenizer::new(file_content);
 
+
     let mut parser = StatParser::new(tokenizer);
+
+
 
     let ast = match parser.parse() {
         Ok(a) => a,
@@ -37,4 +41,5 @@ fn main() {
     println!("{:#?}", ast);
 
 }
+
 

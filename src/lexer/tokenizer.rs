@@ -5,6 +5,7 @@ use crate::lexer::symbols::SymbolType;
 pub struct Token {
     pub start_pos: i128,
     pub end_pos: i128,
+    pub line: i128,
     pub value: Option<String>,
     pub token_type: Option<TokenType>,
 }
@@ -15,6 +16,7 @@ pub enum TokenType {
     Number(bool),
     Symbol(SymbolType),
     String,
+    Character(char),
 }
 
 type TokenReturn = Result<Option<Token>, TokenizerError>;
@@ -42,6 +44,11 @@ impl Tokenizer {
     fn next_char(&mut self) -> Option<char> {
         let r = self.content.chars().nth(self.cursor_position as usize);
         self.cursor_position += 1;
+        if let Some(r) = r {
+            if r == '\n' {
+                self.cursor_line += 1;
+            }
+        }
         r
     }
 
@@ -66,6 +73,7 @@ impl Tokenizer {
                 self.parse_number(token)
             }
             c if c == '"' => self.parse_string(token),
+            c if c == '\'' => self.parse_char(token),
             c if c.is_whitespace() => self.next_token(),
             c if SymbolType::from_char(&c).is_some() => self.parse_symbol(token, c),
             c => Err(TokenizerError::new(
@@ -79,10 +87,30 @@ impl Tokenizer {
         self.buffer = String::default();
     }
 
+    fn parse_char(&mut self, mut token: Token) -> TokenReturn {
+        loop {
+            match self.next_char() {
+                None => {
+                    return Err(TokenizerError::new(self, "Unclosed char literal".into()));
+                }
+                Some(c) => {
+                    if c == '\'' {
+                        let char = self.buffer.chars().next().ok_or(TokenizerError::new(self, "Empty char literal".into()))?;
+                        token.token_type = Some(TokenType::Character(char));
+                        self.finish_token(&mut token);
+
+                        return Ok(Some(token))
+                    }
+
+                    self.buffer.push(c)
+                }
+            }
+        }
+    }
     fn parse_identifier(&mut self, mut token: Token) -> TokenReturn {
         token.token_type = Some(TokenType::Identifier);
         while let Some(c) = self.next_char() {
-            if !c.is_alphanumeric() {
+            if !c.is_alphanumeric() && c != '_' {
                 break;
             }
 
@@ -133,6 +161,7 @@ impl Tokenizer {
         token.value = Some(c.to_string());
         token.token_type = Some(TokenType::Symbol(SymbolType::from_char(&c).unwrap()));
         token.end_pos = self.cursor_position;
+        token.line = self.cursor_line;
         Ok(Some(token))
     }
     fn parse_string(&mut self, mut token: Token) -> TokenReturn {
@@ -172,6 +201,7 @@ impl Tokenizer {
     fn finish_token(&mut self, token: &mut Token) {
         token.end_pos = self.cursor_position - 1; // -1 because we exclude the overflowed char
         token.value = Some(self.buffer.clone());
+        token.line = self.cursor_line
     }
 }
 
@@ -190,6 +220,7 @@ mod tokenizer_tests {
             Token {
                 start_pos: 1,
                 end_pos: 3,
+                line: 1,
                 value: Some("abc".into()),
                 token_type: Some(TokenType::Identifier),
             }
@@ -202,6 +233,7 @@ mod tokenizer_tests {
             Token {
                 start_pos: 5,
                 end_pos: 7,
+                line: 1,
                 value: Some("cba".into()),
                 token_type: Some(TokenType::Identifier),
             }

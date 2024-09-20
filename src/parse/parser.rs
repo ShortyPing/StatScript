@@ -1,3 +1,4 @@
+use std::fmt::format;
 use std::process::id;
 use std::rc::Rc;
 use clap::builder::Str;
@@ -13,11 +14,16 @@ pub enum NodeType {
     Program(Vec<Node>),
     Block(Vec<Node>),
     StringLiteral(String),
-    NumberLiteral(String, bool),
+    Int8Literal(u8),
+    Int16Literal(u16),
+    Int32Literal(u32),
+    Int64Literal(u64),
+    Int128Literal(u128),
+    DoubleLiteral(f64),
     ReturnExpression(Node),
     UnaryNode(UnaryType, Node),
     FunctionDefinition(FunctionDefinition),
-    VariableDeclaration(VariableDeclaration)
+    VariableDeclaration(VariableDeclaration),
 }
 
 #[derive(Debug, Clone)]
@@ -36,7 +42,7 @@ pub struct FunctionDefinition {
 #[derive(Debug, Clone)]
 pub struct VariableDeclaration {
     pub name: String,
-    pub function_type: String,
+    pub variable_type: Option<String>,
     pub value: Node,
 }
 
@@ -113,6 +119,7 @@ impl StatParser {
 
     fn next_token(&mut self) -> Result<Option<Token>, ParserError> {
         let t = self.tokenizer.next_token().map_err(|e| ParserError::new(self, format!("Tokenizer error: {}:{} {}", e.position, e.line, e.message)))?;
+
 
         self.current_token.clone_from(&t);
 
@@ -191,12 +198,45 @@ impl StatParser {
                 Ok(Node {
                     node_type: Rc::new(NodeType::StringLiteral(self.unwrap_guaranteed_value(tok.value)?))
                 })
-            },
+            }
             TokenType::Number(b) => {
-                Ok(Node {
-                    node_type: Rc::new(NodeType::NumberLiteral(self.unwrap_guaranteed_value(tok.value)?, *b))
-                })
-            },
+                let value = self.unwrap_guaranteed_value(tok.value)?;
+
+                if *b {
+                    let numeric: f64 = value.parse().map_err(|_| ParserError::new(self, format!("Literal {value} is not a valid double.")))?;
+
+                    return Ok(Node {
+                        node_type: Rc::new(NodeType::DoubleLiteral(numeric))
+                    });
+                }
+
+                let numeric: i128 = value.parse().map_err(|_| ParserError::new(self, format!("Number {value} is an invalid number")))?;
+                let log = numeric.ilog2() + 1;
+
+                if log <= 8 {
+                    return Ok(Node {
+                        node_type: Rc::new(NodeType::Int8Literal(u8::try_from(numeric).unwrap()))
+                    });
+                } else if log <= 16 {
+                    return Ok(Node {
+                        node_type: Rc::new(NodeType::Int16Literal(u16::try_from(numeric).unwrap()))
+                    });
+                } else if log <= 32 {
+                    return Ok(Node {
+                        node_type: Rc::new(NodeType::Int32Literal(u32::try_from(numeric).unwrap()))
+                    });
+                } else if log <= 64 {
+                    return Ok(Node {
+                        node_type: Rc::new(NodeType::Int64Literal(u64::try_from(numeric).unwrap()))
+                    });
+                } else if log <= 128 {
+                    return Ok(Node {
+                        node_type: Rc::new(NodeType::Int128Literal(u128::try_from(numeric).unwrap()))
+                    });
+                } else {
+                    return Err(ParserError::new(self, "You've bent the universe... or my memory idk".into()));
+                }
+            }
             TokenType::Symbol(BraceLeft) => {
                 Ok(self.parse_block()?)
             }
@@ -208,7 +248,7 @@ impl StatParser {
         let err: String = "Syntax error in variable declaration. Example: 'set<i32> num <- 3".into();
 
         if self.next_token_expect()?.token_type.unwrap() != TokenType::Symbol(SymbolType::TagLeft) {
-            return Err(ParserError::new(self, err))
+            return Err(ParserError::new(self, err));
         }
 
         let type_token = self.next_token_expect()?;
@@ -217,7 +257,7 @@ impl StatParser {
         }
 
         if self.next_token_expect()?.token_type.unwrap() != TokenType::Symbol(SymbolType::TagRight) {
-            return Err(ParserError::new(self, err))
+            return Err(ParserError::new(self, err));
         }
 
         let name_token = self.next_token_expect()?;
@@ -227,19 +267,27 @@ impl StatParser {
         }
 
         if self.next_token_expect()?.token_type.unwrap() != TokenType::Symbol(SymbolType::TagLeft) {
-            return Err(ParserError::new(self, err))
+            return Err(ParserError::new(self, err));
         }
 
         if self.next_token_expect()?.token_type.unwrap() != TokenType::Symbol(SymbolType::Minus) {
-            return Err(ParserError::new(self, err))
+            return Err(ParserError::new(self, err));
         }
 
         let value = self.parse_expression()?;
 
+        let var_type = self.unwrap_guaranteed_value(type_token.value)?;
+
+        let mut t = Some(var_type.clone());
+
+        if var_type == "inherit" {
+            t = None;
+        }
+
         Ok(Node {
             node_type: Rc::new(NodeType::VariableDeclaration(VariableDeclaration {
                 name: self.unwrap_guaranteed_value(name_token.value)?,
-                function_type: self.unwrap_guaranteed_value(type_token.value)?,
+                variable_type: t,
                 value,
             }))
         })
@@ -249,18 +297,17 @@ impl StatParser {
     fn parse_block(&mut self) -> ParserReturn {
         let mut nodes: Vec<Node> = Vec::new();
 
+        let mut closed = false;
+
         while let Some(token) = self.next_token()? {
             if token.token_type.as_ref().unwrap() == &TokenType::Symbol(BraceRight) {
-                continue;
+                closed = true;
+                break;
             }
 
-            if token.token_type.as_ref().unwrap() != &TokenType::Identifier {
-                return Err(ParserError::new(self, "Expected identifier".into()));
-            }
 
             let token_value = self.unwrap_guaranteed_value(token.value)?;
             if token_value == "set" {
-
                 nodes.push(self.parse_variable_declaration()?);
                 continue;
             }
@@ -269,11 +316,20 @@ impl StatParser {
                 nodes.push(Node {
                     node_type: Rc::new(NodeType::ReturnExpression(self.parse_expression()?))
                 });
-                continue
+                continue;
+            }
+
+            if token.token_type == Some(TokenType::Symbol(BraceLeft)) {
+                nodes.push(self.parse_block()?);
+                continue;
             }
 
 
-            return Err(ParserError::new(self, format!("Unexpected identifier {token_value}")));
+            return Err(ParserError::new(self, format!("Unexpected token {token_value}")));
+        }
+
+        if !closed {
+            return Err(ParserError::new(self, "Expected block closure".into()));
         }
 
         Ok(Node {

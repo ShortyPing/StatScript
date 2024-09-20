@@ -55,13 +55,14 @@ impl SymbolType {
             '=' => Some(Self::Equals),
             ':' => Some(Self::Colon),
             ';' => Some(Self::Semicolon),
-            '.' => Some(Self::Comma),
+            ',' => Some(Self::Comma),
             '?' => Some(Self::QuestionMark),
             '`' => Some(Self::Backtick),
             '~' => Some(Self::Tilde),
             '|' => Some(Self::Pipe),
             '<' => Some(Self::TagLeft),
             '>' => Some(Self::TagRight),
+            '.' => Some(Self::Dot),
             _ => None,
         }
     }

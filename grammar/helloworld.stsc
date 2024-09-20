@@ -1,6 +1,5 @@
-func main() @ i32 {
-    set<i32> var1 <- {
-        return abc
-    }
+func main() @i32 {
+
+    set<abc> abc <- 12
 
 }
