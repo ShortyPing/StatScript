@@ -1,5 +1,6 @@
 func main() @i32 {
 
-    set<abc> abc <- 12
+    set<i32> abc <- "das"
+    builtin println(template = "Hello, World")
 
 }

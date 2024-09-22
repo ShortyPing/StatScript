@@ -5,6 +5,7 @@ use clap::Parser;
 
 use stat_script::lexer::tokenizer::Tokenizer;
 use stat_script::parse::parser::StatParser;
+use stat_script::runtime;
 
 #[derive(Debug, Parser)]
 struct CLI {
@@ -39,6 +40,17 @@ fn main() {
     };
 
     println!("{:#?}", ast);
+
+    let mut program = runtime::program::Program::new(&ast);
+
+    match program.execute() {
+        None => {}
+        Some(err) => {
+            eprintln!("A runtime error occurred: {}", err.message);
+            exit(1)
+        }
+    };
+
 
 }
 

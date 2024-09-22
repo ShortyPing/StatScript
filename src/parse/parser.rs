@@ -1,11 +1,9 @@
-use std::fmt::format;
-use std::process::id;
-use std::rc::Rc;
-use clap::builder::Str;
+use std::collections::HashMap;
 use crate::error::parser::ParserError;
 use crate::lexer::symbols::SymbolType;
-use crate::lexer::symbols::SymbolType::{AtSign, BraceLeft, BraceRight, ParenthesisLeft, ParenthesisRight};
-use crate::lexer::tokenizer::{Token, Tokenizer, TokenType};
+use crate::lexer::symbols::SymbolType::{AtSign, BraceLeft, BraceRight, Colon, Comma, Equals, ParenthesisLeft, ParenthesisRight};
+use crate::lexer::tokenizer::{Token, TokenType, Tokenizer};
+use std::rc::Rc;
 
 type ParserReturn = Result<Node, ParserError>;
 
@@ -24,6 +22,7 @@ pub enum NodeType {
     UnaryNode(UnaryType, Node),
     FunctionDefinition(FunctionDefinition),
     VariableDeclaration(VariableDeclaration),
+    FunctionCall(FunctionCall)
 }
 
 #[derive(Debug, Clone)]
@@ -40,6 +39,13 @@ pub struct FunctionDefinition {
 }
 
 #[derive(Debug, Clone)]
+pub struct FunctionCall {
+    pub builtin: bool,
+    pub name: String,
+    pub parameters: HashMap<String, Node>
+}
+
+#[derive(Debug, Clone)]
 pub struct VariableDeclaration {
     pub name: String,
     pub variable_type: Option<String>,
@@ -47,7 +53,7 @@ pub struct VariableDeclaration {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct FunctionParameter {
     pub param_type: String,
     pub param_name: String,
@@ -160,7 +166,7 @@ impl StatParser {
         }
 
         if self.next_token_expect()?.token_type.unwrap() != TokenType::Symbol(ParenthesisRight) {
-            todo!()
+            signature = self.parse_function_definition_signature()?
         }
 
         if self.next_token_expect()?.token_type.unwrap() == TokenType::Symbol(AtSign) {
@@ -190,6 +196,64 @@ impl StatParser {
         })
     }
 
+    fn parse_function_definition_signature(&mut self) -> Result<Vec<FunctionParameter>, ParserError> {
+        let mut next_token = self.current_token.clone().unwrap();
+        let max_arguments = 128;
+        let mut parameters: Vec<FunctionParameter> = Vec::new();
+
+
+        let mut i = 0;
+        while next_token.token_type != Some(TokenType::Symbol(ParenthesisRight)) {
+            
+            if !parameters.is_empty() {
+                if next_token.token_type != Some(TokenType::Symbol(Comma)) {
+                    return Err(ParserError::new(self, "Expected symbol ',' to separate different parameters".to_string()))
+                }
+                
+                next_token = self.next_token_expect()?
+            }
+
+            i += 1;
+            if i > max_arguments {
+                return Err(ParserError::new(self, "Function definition only supports up to 128 arguments".into()))
+            }
+
+            if next_token.token_type != Some(TokenType::Identifier) {
+                return Err(ParserError::new(self, format!("Expected identifier got {:?}", next_token.token_type.unwrap())))
+            }
+
+            let parameter_name = next_token.value.unwrap();
+
+            next_token = self.next_token_expect()?;
+
+
+            if next_token.token_type != Some(TokenType::Symbol(AtSign)) {
+                return Err(ParserError::new(self, format!("Expected token '@' got {:?}", next_token.token_type.unwrap())))
+
+            }
+
+            next_token = self.next_token_expect()?;
+
+            if next_token.token_type != Some(TokenType::Identifier) {
+                return Err(ParserError::new(self, format!("Expected identifier got {:?}", next_token.token_type.unwrap())))
+            }
+
+            let parameter_type = next_token.value.clone().unwrap();
+
+
+            let parameter = FunctionParameter {
+                param_type: parameter_type,
+                param_name: parameter_name,
+            };
+
+            parameters.push(parameter);
+
+            next_token = self.next_token_expect()?;
+        }
+
+        Ok(parameters)
+    }
+
     fn parse_expression(&mut self) -> ParserReturn {
         let tok = self.next_token_expect()?;
 
@@ -213,28 +277,28 @@ impl StatParser {
                 let numeric: i128 = value.parse().map_err(|_| ParserError::new(self, format!("Number {value} is an invalid number")))?;
                 let log = numeric.ilog2() + 1;
 
-                if log <= 8 {
-                    return Ok(Node {
+                return if log <= 8 {
+                    Ok(Node {
                         node_type: Rc::new(NodeType::Int8Literal(u8::try_from(numeric).unwrap()))
-                    });
+                    })
                 } else if log <= 16 {
-                    return Ok(Node {
+                    Ok(Node {
                         node_type: Rc::new(NodeType::Int16Literal(u16::try_from(numeric).unwrap()))
-                    });
+                    })
                 } else if log <= 32 {
-                    return Ok(Node {
+                    Ok(Node {
                         node_type: Rc::new(NodeType::Int32Literal(u32::try_from(numeric).unwrap()))
-                    });
+                    })
                 } else if log <= 64 {
-                    return Ok(Node {
+                    Ok(Node {
                         node_type: Rc::new(NodeType::Int64Literal(u64::try_from(numeric).unwrap()))
-                    });
+                    })
                 } else if log <= 128 {
-                    return Ok(Node {
+                    Ok(Node {
                         node_type: Rc::new(NodeType::Int128Literal(u128::try_from(numeric).unwrap()))
-                    });
+                    })
                 } else {
-                    return Err(ParserError::new(self, "You've bent the universe... or my memory idk".into()));
+                    Err(ParserError::new(self, "You've bent the universe... or my memory idk".into()))
                 }
             }
             TokenType::Symbol(BraceLeft) => {
@@ -293,6 +357,65 @@ impl StatParser {
         })
     }
 
+    fn get_expected_identifier(&mut self, fetch_next_token: bool) -> Result<String, ParserError> {
+        let token = if fetch_next_token {
+            self.next_token_expect()?
+        } else {
+            self.current_token.clone().unwrap()
+        };
+
+        if token.token_type != Some(TokenType::Identifier) {
+            return Err(ParserError::new(self, format!("Expected identifier got {:?}", token.token_type.unwrap())))
+        }
+
+        self.unwrap_guaranteed_value(token.value)
+    }
+
+    fn expect_token_type(&mut self, token_type: TokenType) -> Result<bool, ParserError> {
+        let token = self.next_token_expect()?;
+
+        if token.token_type != Some(token_type.clone()) {
+            return Err(ParserError::new(self, format!("Expected {:?} got {:?}", token_type, token.token_type.unwrap())))
+        }
+
+        Ok(true)
+    }
+
+    fn parse_function_call(&mut self, builtin: bool) -> ParserReturn {
+        let mut parameters: HashMap<String, Node> = HashMap::new();
+
+
+        let method_name = self.get_expected_identifier(true)?;
+
+
+        self.expect_token_type(TokenType::Symbol(ParenthesisLeft))?;
+
+        let mut next_token = self.next_token_expect()?;
+
+        if next_token.token_type != Some(TokenType::Symbol(ParenthesisRight)) {
+            while next_token.token_type != Some(TokenType::Symbol(ParenthesisRight)) {
+
+                let parameter_name = self.get_expected_identifier(false)?;
+
+                self.expect_token_type(TokenType::Symbol(Equals))?;
+
+                let value = self.parse_expression()?;
+
+                parameters.insert(parameter_name, value);
+
+                next_token = self.next_token_expect()?;
+            }
+        }
+
+        Ok(Node {
+            node_type: Rc::new(NodeType::FunctionCall(FunctionCall {
+                builtin,
+                name: method_name,
+                parameters,
+            }))
+        })
+
+    }
 
     fn parse_block(&mut self) -> ParserReturn {
         let mut nodes: Vec<Node> = Vec::new();
@@ -316,6 +439,11 @@ impl StatParser {
                 nodes.push(Node {
                     node_type: Rc::new(NodeType::ReturnExpression(self.parse_expression()?))
                 });
+                continue;
+            }
+
+            if token_value == "builtin" {
+                nodes.push(self.parse_function_call(true)?);
                 continue;
             }
 
