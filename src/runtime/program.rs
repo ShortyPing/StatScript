@@ -13,23 +13,32 @@ pub struct Program<'a> {
     pub current_frame: Rc<RefCell<Frame<'a>>>
 }
 
-pub struct Thread<'a> {
-    pub name: String,
-    pub ast: &'a Node,
-    pub program: &'a Program<'a>
-}
 
 type RuntimeReturn = Option<RuntimeError>;
 
-impl<'a> Thread<'a> {
+
+
+impl<'a> Program<'a> {
+    pub fn new(ast: Node) -> Self {
+        let frame = Rc::new(RefCell::new(Frame::new(None)));
+
+        
+        Self {
+            started_at: Instant::now(),
+            ast,
+            top_level_frame: Rc::clone(&frame),
+            current_frame: frame
+        }
+    }
+
     pub fn start(&self) -> RuntimeReturn {
 
-        self.execute_entrypoint(self.ast)?;
+        self.execute_entrypoint(&self.ast)?;
 
         None
     }
-    
-    
+
+
     fn execute_entrypoint(&self, node: &Node) -> RuntimeReturn {
         match node.node_type.as_ref() {
             NodeType::FunctionDefinition(def) => {
@@ -54,47 +63,23 @@ impl<'a> Thread<'a> {
         None
     }
 
-    fn start_new_frame(&self, inner_ast: &'a Node) {
-        let frame = Rc::new(RefCell::new(Frame::new(Some(self.program.current_frame.borrow()))));
+    fn start_new_frame(&self, inner_ast: &Node) {
+        let frame = Rc::new(RefCell::new(Frame::new(Some(self.current_frame.borrow()))));
     }
-
-
-
     
-}
 
-
-impl<'a> Program<'a> {
-    pub fn new(ast: Node) -> Self {
-        let frame = Rc::new(RefCell::new(Frame::new(None)));
-
-        
-        Self {
-            started_at: Instant::now(),
-            ast,
-            top_level_frame: Rc::clone(&frame),
-            current_frame: Rc::clone(&frame)
-        }
-    }
-
-    pub fn execute(&'a self) -> RuntimeReturn {
+    pub fn execute(&self) -> RuntimeReturn {
         let main_method = self.find_main_method();
 
         if main_method.is_none() {
             return Some(RuntimeError::new("No main method present in top-level context.".to_string()));
         }
 
-        let main_thread = Some(Thread {
-            name: "main".to_string(),
-            ast: main_method.unwrap(),
-            program: self
-        });
 
-
-        main_thread?.start()
+        self.start()
     }
 
-    fn find_main_method(&'a self) -> Option<&'a Node> {
+    fn find_main_method(&self) -> Option<&Node> {
         match self.ast.node_type.as_ref() {
             NodeType::Program(nodes) => {
                 for node in nodes.iter() {
