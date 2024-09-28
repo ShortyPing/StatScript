@@ -164,6 +164,7 @@ impl Tokenizer {
         token.line = self.cursor_line;
         Ok(Some(token))
     }
+    
     fn parse_string(&mut self, mut token: Token) -> TokenReturn {
         let mut is_escaped = false;
         loop {

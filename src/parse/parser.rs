@@ -83,8 +83,7 @@ impl StatParser {
 
     pub fn parse(&mut self) -> ParserReturn {
         let program = self.parse_program()?;
-
-
+        
         self.ast.node_type = Rc::new(program);
         Ok(self.ast.clone())
     }

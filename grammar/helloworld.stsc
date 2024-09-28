@@ -1,6 +1,5 @@
-func main() @i32 {
+func main(abc @string) @i32 {
 
-    set<i32> abc <- "das"
     builtin println(template = "Hello, World")
 
 }

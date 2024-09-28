@@ -1,18 +1,21 @@
 use std::any::Any;
+use std::cell::Ref;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 pub struct Frame<'a> {
-    pub parent_frame: Option<&'a Frame<'a>>,
+    pub children: Vec<Frame<'a>>,
+    pub parent_frame: Option<Ref<'a, Frame<'a>>>,
     pub variables: HashMap<String, Rc<dyn Any>>
 }
 
 impl<'a> Frame<'a> {
     
-    fn new(parent_frame: Option<&'a Frame<'a>>) -> Self {
+    pub fn new(parent_frame: Option<Ref<'a, Frame<'a>>>) -> Self {
         Self {
             parent_frame,
             variables: Default::default(),
+            children: Vec::new()
         }
     }
 
@@ -27,7 +30,7 @@ impl<'a> Frame<'a> {
                     return Some(var.clone())
                 },
                 None => {
-                    next_frame = next_frame?.parent_frame;
+                    next_frame = next_frame?.parent_frame.as_deref();
                     continue
                 }
             }

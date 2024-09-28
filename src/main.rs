@@ -41,8 +41,9 @@ fn main() {
 
     println!("{:#?}", ast);
 
-    let mut program = runtime::program::Program::new(&ast);
-
+    let mut program = runtime::program::Program::new(ast);
+;
+    
     match program.execute() {
         None => {}
         Some(err) => {

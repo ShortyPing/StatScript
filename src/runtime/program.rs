@@ -1,73 +1,117 @@
+use std::cell::RefCell;
 use std::ops::Deref;
+use std::rc::Rc;
 use std::time::Instant;
 use crate::error::runtime::RuntimeError;
 use crate::parse::parser::{Node, NodeType};
+use crate::runtime::frame::Frame;
 
 pub struct Program<'a> {
     pub started_at: Instant,
-    pub ast: &'a Node
+    pub ast: Node,
+    pub top_level_frame: Rc<RefCell<Frame<'a>>>,
+    pub current_frame: Rc<RefCell<Frame<'a>>>
 }
 
 pub struct Thread<'a> {
     pub name: String,
-    pub ast: &'a Node
+    pub ast: &'a Node,
+    pub program: &'a Program<'a>
 }
 
+type RuntimeReturn = Option<RuntimeError>;
+
 impl<'a> Thread<'a> {
-    
-    pub fn start(& self) -> Option<RuntimeError> {
-        println!("{:#?}", self.ast);
+    pub fn start(&self) -> RuntimeReturn {
+
+        self.execute_entrypoint(self.ast)?;
+
         None
     }
+    
+    
+    fn execute_entrypoint(&self, node: &Node) -> RuntimeReturn {
+        match node.node_type.as_ref() {
+            NodeType::FunctionDefinition(def) => {
+                self.execute_node(&def.body)
+            },
+            _ => Some(RuntimeError::expected_node_type("function definition", node.node_type.as_ref()))
+        }
+    }
+
+    fn execute_node(&self, node: &Node) -> RuntimeReturn {
+        match node.node_type.as_ref() {
+            NodeType::Block(nodes ) => self.execute_block(nodes),
+            _ => todo!("Node type not implemented in runtime")
+        }
+    }
+
+    fn execute_block(&self, inner_nodes: &Vec<Node>) -> RuntimeReturn {
+        for node in inner_nodes {
+            self.execute_node(node)?;
+        }
+
+        None
+    }
+
+    fn start_new_frame(&self, inner_ast: &'a Node) {
+        let frame = Rc::new(RefCell::new(Frame::new(Some(self.program.current_frame.borrow()))));
+    }
+
+
+
+    
 }
 
 
 impl<'a> Program<'a> {
+    pub fn new(ast: Node) -> Self {
+        let frame = Rc::new(RefCell::new(Frame::new(None)));
 
-    pub fn new(ast: &'a Node) -> Self {
+        
         Self {
             started_at: Instant::now(),
-            ast
+            ast,
+            top_level_frame: Rc::clone(&frame),
+            current_frame: Rc::clone(&frame)
         }
     }
 
-    pub fn execute(&mut self) -> Option<RuntimeError> {
+    pub fn execute(&'a self) -> RuntimeReturn {
         let main_method = self.find_main_method();
 
         if main_method.is_none() {
-            return Some(RuntimeError::new("No main method present in top-level context.".to_string()))
+            return Some(RuntimeError::new("No main method present in top-level context.".to_string()));
         }
 
         let main_thread = Some(Thread {
             name: "main".to_string(),
-            ast: main_method.unwrap()
+            ast: main_method.unwrap(),
+            program: self
         });
 
-        
 
         main_thread?.start()
     }
 
-    fn find_main_method(&mut self) -> Option<&'a Node> {
+    fn find_main_method(&'a self) -> Option<&'a Node> {
         match self.ast.node_type.as_ref() {
             NodeType::Program(nodes) => {
-
                 for node in nodes.iter() {
-                    return match node.node_type.as_ref()  {
+                    return match node.node_type.as_ref() {
                         NodeType::FunctionDefinition(definition) => {
                             if definition.name != "main" {
-                                return None
+                                return None;
                             }
 
                             Some(&definition.body)
                         }
                         _ => continue
-                    }
+                    };
                 }
                 None
-            },
+            }
             _ => None
         }
-
     }
 }
